@@ -1,23 +1,23 @@
-# Imagem base
+# Dockerfile (backend)
 FROM node:20
 
-# Define diretório de trabalho
 WORKDIR /app
 
-# Copia package.json e package-lock.json
+# Copia package.json e package-lock.json do backend
 COPY package*.json ./
+RUN npm install --production
 
-# Instala dependências
-RUN npm install
-
-# Copia o restante do código
+# Copia todo o backend
 COPY . .
 
-# Compila TypeScript (opcional se usar ts-node-dev)
-RUN npm run build
+# Build do frontend
+WORKDIR /app/frontend
+RUN npm install && npm run build
+
+# Volta para o backend
+WORKDIR /app
 
 # Expõe porta
 EXPOSE 3001
 
-# Comando para rodar
-CMD ["npm", "run", "start"]
+CMD ["node", "dist/index.js"]

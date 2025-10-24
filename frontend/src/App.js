@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "./api";
 import "./App.css";
+import "./popupManager"
 
 function Window({ title, children, style }) {
   return (
@@ -16,21 +17,10 @@ function Window({ title, children, style }) {
   );
 }
 
-function Popup({ id, img, onClose }) {
+function Popup({ id, img, message, onClose }) {
   const [position] = useState({
     top: `${20 + Math.random() * 60}%`,
     left: `${20 + Math.random() * 60}%`
-  });
-
-  const [message] = useState(() => {
-    const messages = [
-      "DRIVING IN MY CAR",
-      "WIN 10 [Kromer]!!!!",
-      "BE A [[BIG SHOT]]",
-      "Spamton needs your liver.",
-      "WIN [Big] DONATE 20 [Kromer]."
-    ];
-    return messages[Math.floor(Math.random() * messages.length)];
   });
 
   useEffect(() => {
@@ -51,7 +41,6 @@ function Popup({ id, img, onClose }) {
   );
 }
 
-
 export default function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -63,119 +52,216 @@ export default function App() {
   const [popups, setPopups] = useState([]);
 
   useEffect(() => {
-    if (token) fetchTasks();
+    if (token) fetchTasks(token);
   }, [token]);
 
+  // Popups
   useEffect(() => {
-  const imgs = [
-    "https://media1.tenor.com/m/-bzHXgl29JQAAAAC/asgore-run-over.gif",
-    "https://media.tenor.com/tDifeVlP6sUAAAAi/deltarune-spamton.gif",
-    "https://i.redd.it/pa6v03g1glo91.gif"
-  ];
+    const imgs = [
+      "https://media1.tenor.com/m/-bzHXgl29JQAAAAC/asgore-run-over.gif",
+      "https://media.tenor.com/tDifeVlP6sUAAAAi/deltarune-spamton.gif",
+      "https://i.redd.it/pa6v03g1glo91.gif"
+    ];
 
-  const messages = [
-    "Spamton says:",
-    "WIN 10 [Kromer]!!!!",
-    "BE A [[BIG SHOT]]",
-    "Spamton needs your liver.",
-    "WIN [Big] DONATE 20 [Kromer]."
-  ];
+    const messages = [
+      "Spamton says:",
+      "WIN 10 [Kromer]!!!!",
+      "BE A [[BIG SHOT]]",
+      "Spamton needs your liver.",
+      "WIN [Big] DONATE 20 [Kromer]."
+    ];
 
-  const interval = setInterval(() => {
-    if (Math.random() < 0.5) {
-      const id = Date.now();
-      const isImg = Math.random() < 0.5;
-      const img = isImg ? imgs[Math.floor(Math.random() * imgs.length)] : null;
-      const message = !isImg ? messages[Math.floor(Math.random() * messages.length)] : null;
-
-      setPopups(prev => [...prev, { id, img, message }]);
-
+    const interval = setInterval(() => {
       if (Math.random() < 0.5) {
+        const id = Date.now();
+        const isImg = Math.random() < 0.5;
+        const img = isImg ? imgs[Math.floor(Math.random() * imgs.length)] : null;
+        const message = !isImg ? messages[Math.floor(Math.random() * messages.length)] : null;
+
+        setPopups(prev => [...prev, { id, img, message }]);
+
         const timeout = 9000 + Math.floor(Math.random() * 6000);
         setTimeout(() => setPopups(prev => prev.filter(p => p.id !== id)), timeout);
+
+        const audio = new Audio("/sounds/windows.mp3");
+        audio.play();
       }
+    }, 7000);
 
-      const audio = new Audio("/sounds/windows.mp3");
-    audio.play();
-    }
-  }, 7000);
-
-  return () => clearInterval(interval);
-}, []);
-
+    return () => clearInterval(interval);
+  }, []);
 
   const handleClosePopup = (id) => setPopups(prev => prev.filter(p => p.id !== id));
 
+  // LOGIN
   const login = async () => {
     try {
-      const res = await api.post("/auth/login", { username, password });
-      setToken(res.data.token);
-      localStorage.setItem("token", res.data.token);
+      const res = await api.post("https://spamwarelist.azurewebsites.net/auth/login", { username, password });
+      console.log("Login response:", res.data);
+      const tokenReceived = res.data.token;
+      if (!tokenReceived) return alert("Token nao recebido :(")
+      setToken(tokenReceived);
+      localStorage.setItem("token", tokenReceived);
+      fetchTasks(tokenReceived);
       alert("Login OK");
-    } catch {
+    } catch (err) {
+      console.error(err);
       alert("Erro no login");
     }
   };
 
-  const fetchTasks = async () => {
-    try {
-      const res = await api.get("/tasks", { headers: { Authorization: `Bearer ${token}` } });
-      setTasks(res.data);
-    } catch {
-      alert("Erro ao buscar tarefas");
-    }
-  };
+  // FETCH TASKS
+  const fetchTasks = async (tokenParam) => {
+  try {
+    const res = await fetch("https://spamwarelist.azurewebsites.net/tasks", {
+      headers: {
+        Authorization: `Bearer ${tokenParam || token}`,
+      },
+    });
 
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Erro HTTP ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json();
+    setTasks(data);
+  } catch (err) {
+    console.error("Erro ao buscar tasks:", err);
+  }
+};
+
+  // ADD TASK sus
   const addTask = async () => {
-    if (!newTask.trim()) return;
-    try {
-      await api.post("/tasks", { title: newTask }, { headers: { Authorization: `Bearer ${token}` } });
-      setNewTask("");
-      fetchTasks();
-    } catch {
-      alert("Erro ao criar task");
+  if (!newTask.trim()) return;
+
+  try {
+    const res = await fetch("https://spamwarelist.azurewebsites.net/tasks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ title: newTask }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Erro HTTP ${res.status}: ${errText}`);
     }
-  };
 
-  const toggle = async (t) => {
-    try {
-      await api.put(`/tasks/${t.id}`, { completed: !t.completed }, { headers: { Authorization: `Bearer ${token}` } });
-      fetchTasks();
-    } catch {}
-  };
+    setNewTask("");
+    fetchTasks();
+  } catch (err) {
+    console.error(err);
+    alert("Erro ao criar task");
+  }
+};
 
+  // autualizao de tasks insana eu nao aguento mais isso cara
+    const toggle = async (t) => {
+  try {
+    const res = await fetch(`https://spamwarelist.azurewebsites.net/tasks/${t.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ completed: !t.completed }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Erro HTTP ${res.status}: ${errText}`);
+    }
+
+    fetchTasks();
+  } catch (err) {
+    console.error("Erro ao atualizar tarefa:", err);
+  }
+};
+
+
+  //delete insano aaaaaaaaaaaaaaaaaaaaaaa
   const remove = async (id) => {
     try {
-      await api.delete(`/tasks/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`https://spamwarelist.azurewebsites.net/tasks/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Erro HTTP ${res.status}: ${errText}`);
+      }
+
       fetchTasks();
-    } catch {}
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao remover task");
+    }
   };
 
-  const generateAdminToken = async () => {
+
+  // ADMIN :(
+    const generateAdminToken = async () => {
     try {
-      const res = await api.get("/admin/get-token");
-      setAdminToken(res.data.token);
-      localStorage.setItem("adminToken", res.data.token);
-      alert("Admin token gerado");
-    } catch {
+      const res = await fetch("https://spamwarelist.azurewebsites.net/admin/get_token");
+      
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Erro HTTP ${res.status}: ${errText}`);
+      }
+
+      const data = await res.json();
+      console.log("Admin token recebido:", data);
+
+      const token = data.token;
+      if (!token) return alert("Token de admin não recebido");
+
+      setAdminToken(token);
+      localStorage.setItem("adminToken", token);
+      alert("Admin token gerado com sucesso");
+    } catch (err) {
+      console.error(err);
       alert("Erro ao gerar token admin");
     }
   };
 
+  // registro de pessoa insana
+
   const createUser = async () => {
-    try {
-      if (!adminToken) return alert("Gere o token admin primeiro");
-      await api.post(
-        "/auth/register",
-        { username: newUser.username, password: newUser.password, isAdmin: false },
-        { headers: { Authorization: `Bearer ${adminToken}` } }
-      );
-      alert("Usuário criado");
-      setNewUser({ username: "", password: "" });
-    } catch {
-      alert("Erro ao criar usuário");
+  try {
+    if (!adminToken) return alert("Gere o token admin primeiro");
+
+    const res = await fetch("https://spamwarelist.azurewebsites.net/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        username: newUser.username,
+        password: newUser.password,
+        isAdmin: false,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Erro HTTP ${res.status}: ${errText}`);
     }
-  };
+
+    alert("Usuário criado com sucesso");
+    setNewUser({ username: "", password: "" });
+  } catch (err) {
+    console.error(err);
+    alert("Erro ao criar usuário");
+  }
+};
+
 
   const logout = () => {
     setToken("");
@@ -189,6 +275,7 @@ export default function App() {
         <div className="startbar">Spamton G Spamton</div>
 
         <div className="windows-grid">
+          {/* LOGIN */}
           <Window title="Login — Spamton XP" style={{ width: 380 }}>
             <div className="form-row">
               <label>Username</label>
@@ -205,53 +292,85 @@ export default function App() {
             </div>
           </Window>
 
+          {/* TASKS */}
           <Window title="ToDo — Spamton XP" style={{ flex: 1 }}>
             <div style={{ marginBottom: 8 }}>
-              <strong>Logged token:</strong> {token ? token.slice(0,40) + "..." : <em>not logged</em>}
+              <strong>Logged token:</strong>{" "}
+              {token ? token.slice(0, 40) + "..." : <em>not logged</em>}
             </div>
             <div className="add-row">
-              <input placeholder="Nova task..." value={newTask} onChange={e => setNewTask(e.target.value)} />
+              <input
+                placeholder="Nova task..."
+                value={newTask}
+                onChange={e => setNewTask(e.target.value)}
+              />
               <button className="btn" onClick={addTask}>Adicionar</button>
             </div>
+
             <ul className="task-list">
-              {tasks.map(t => (
+              {tasks.length > 0 ? tasks.map(t => (
                 <li key={t.id} className="task-item">
                   <div>
-                    <input type="checkbox" checked={t.completed} onChange={() => toggle(t)} />
-                    <span className={t.completed ? "completed" : ""}>{t.title}</span>
+                    <input
+                      type="checkbox"
+                      checked={!!t.completed}
+                      onChange={() => toggle(t)}
+                    />
+                    <span className={t.completed ? "completed" : ""}>
+                      {t.title}
+                    </span>
                   </div>
                   <div>
-                    <button className="btn small" onClick={() => remove(t.id)}>Delete</button>
+                    <button className="btn small" onClick={() => remove(t.id)}>
+                      Delete
+                    </button>
                   </div>
                 </li>
-              ))}
+              )) : (
+                <li><em>Nenhuma task encontrada.</em></li>
+              )}
             </ul>
+
             <div style={{ marginTop: 8 }}>
               <button className="btn" onClick={fetchTasks}>Refresh</button>
               <button className="btn ghost" onClick={logout}>Logout</button>
             </div>
           </Window>
 
+          {/* ADMIN */}
           <Window title="Admin Panel" style={{ width: 360 }}>
             <div style={{ marginBottom: 8 }}>
               <button className="btn" onClick={generateAdminToken}>Gerar Token Admin (DEV)</button>
             </div>
             <div style={{ marginBottom: 8 }}>
-              <strong>Admin token:</strong> {adminToken ? adminToken.slice(0,40) + "..." : <em>not generated</em>}
+              <strong>Admin token:</strong>{" "}
+              {adminToken ? adminToken.slice(0, 40) + "..." : <em>not generated</em>}
             </div>
             <div className="form-row">
               <label>Novo usuário</label>
-              <input placeholder="username" value={newUser.username} onChange={e => setNewUser(prev => ({...prev, username: e.target.value}))} />
-              <input placeholder="password" type="password" value={newUser.password} onChange={e => setNewUser(prev => ({...prev, password: e.target.value}))} />
+              <input
+                placeholder="username"
+                value={newUser.username}
+                onChange={e =>
+                  setNewUser(prev => ({ ...prev, username: e.target.value }))
+                }
+              />
+              <input
+                placeholder="password"
+                type="password"
+                value={newUser.password}
+                onChange={e =>
+                  setNewUser(prev => ({ ...prev, password: e.target.value }))
+                }
+              />
               <button className="btn" onClick={createUser}>Criar Usuário</button>
             </div>
           </Window>
         </div>
 
         {popups.map(p => (
-          <Popup key={p.id} id={p.id} img={p.img} onClose={handleClosePopup} />
+          <Popup key={p.id} id={p.id} img={p.img} message={p.message} onClose={handleClosePopup} />
         ))}
-
       </div>
     </div>
   );
