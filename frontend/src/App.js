@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import api from "./api";
 import "./App.css";
-import "./popupManager"
 
 function Window({ title, children, style }) {
   return (
@@ -204,43 +203,15 @@ export default function App() {
     }
   };
 
-
-  // ADMIN :(
-    const generateAdminToken = async () => {
-    try {
-      const res = await fetch("https://spamwarelist.azurewebsites.net/admin/get_token");
-      
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Erro HTTP ${res.status}: ${errText}`);
-      }
-
-      const data = await res.json();
-      console.log("Admin token recebido:", data);
-
-      const token = data.token;
-      if (!token) return alert("Token de admin não recebido");
-
-      setAdminToken(token);
-      localStorage.setItem("adminToken", token);
-      alert("Admin token gerado com sucesso");
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao gerar token admin");
-    }
-  };
-
   // registro de pessoa insana
 
   const createUser = async () => {
   try {
-    if (!adminToken) return alert("Gere o token admin primeiro");
-
-    const res = await fetch("https://spamwarelist.azurewebsites.net/auth/register", {
+   const res = await fetch("https://spamwarelist.azurewebsites.net/auth/register", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${adminToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         username: newUser.username,
@@ -339,13 +310,6 @@ export default function App() {
 
           {/* ADMIN */}
           <Window title="Admin Panel" style={{ width: 360 }}>
-            <div style={{ marginBottom: 8 }}>
-              <button className="btn" onClick={generateAdminToken}>Gerar Token Admin (DEV)</button>
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <strong>Admin token:</strong>{" "}
-              {adminToken ? adminToken.slice(0, 40) + "..." : <em>not generated</em>}
-            </div>
             <div className="form-row">
               <label>Novo usuário</label>
               <input
